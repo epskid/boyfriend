@@ -2,5 +2,6 @@
 tests/**
 Cargo.lock
 
-# whitelist the tests
-!**/*.bf
+# whitelist the tests and the READMEs
+!tests/**/*.bf
+!tests/**/README.txt

@@ -1,7 +1,10 @@
-/target
-tests/**
-Cargo.lock
+*
 
-# whitelist the tests and the READMEs
-!tests/**/*.bf
-!tests/**/README.txt
+!.gitignore
+!tests/
+!tests/*
+!tests/*/*.bf
+!tests/*/README.txt
+!src/
+!Cargo.toml
+!README.txt

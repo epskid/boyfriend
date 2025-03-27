@@ -1,0 +1,2 @@
+- the "classic" version is from https://www.linusakesson.net/programming/brainfuck/index.php
+- the "fast" (by about 5ms) version is from the famous http://brainfuck.org website, at https://brainfuck.org/life.b

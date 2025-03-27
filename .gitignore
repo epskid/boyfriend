@@ -1,4 +1,6 @@
 /target
 tests/**
-!tests/*/*.bf
 Cargo.lock
+
+# whitelist the tests
+!**/*.bf

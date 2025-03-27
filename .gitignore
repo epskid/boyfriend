@@ -1,5 +1,7 @@
 *
+Cargo.lock
 
+# whyyyy
 !.gitignore
 !tests/
 !tests/*

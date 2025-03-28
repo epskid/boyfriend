@@ -23,6 +23,9 @@ enum Commands {
 
     /// compile a brainf*ck file into intermediate representation, then interpret it
     Run { path: PathBuf },
+
+    /// clean up artifacts generated when using `boyfriend compile` (may delete important stuff)
+    Clean { path: PathBuf },
 }
 
 fn run_command(cmd: &mut std::process::Command) -> std::io::Result<()> {
@@ -49,11 +52,36 @@ fn run_command(cmd: &mut std::process::Command) -> std::io::Result<()> {
 
 fn entry() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
-    eprintln!("? {} -- {} (v{})", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_DESCRIPTION"), env!("CARGO_PKG_VERSION"));
     let path = match cli.command {
         Commands::Compile { ref path } => path,
         Commands::Run { ref path } => path,
+        Commands::Clean { ref path } => {
+            let mut asm_path = path.clone();
+            asm_path.set_extension("asm");
+            let mut object_path = path.clone();
+            object_path.set_extension("o");
+            let mut binary_path = path.clone();
+            binary_path.set_extension("");
+            eprintln!("this will remove the following files: `{}`, `{}`, and `{}`.", asm_path.display(), object_path.display(), binary_path.display());
+            eprint!("continue? [y/N] ");
+            std::io::stderr().flush()?;
+
+            let mut continue_buf = String::new();
+            std::io::stdin().read_line(&mut continue_buf)?;
+            if let Some('y') = continue_buf.to_lowercase().chars().next() {
+                std::fs::remove_file(asm_path)?;
+                std::fs::remove_file(object_path)?;
+                std::fs::remove_file(binary_path)?;
+            } else {
+                eprintln!("operation aborted by user");
+            }
+
+            return Ok(());
+        }
     };
+
+    eprintln!("? {} -- {} (v{})", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_DESCRIPTION"), env!("CARGO_PKG_VERSION"));
+
     let code = read_to_string(&path)?;
 
     eprintln!("* beginning compilation of {}", path.display());
@@ -77,7 +105,7 @@ fn entry() -> Result<(), Box<dyn Error>> {
 
             eprintln!("* building object with fasm");
 
-            let mut object_path = asm_path.clone();
+            let mut object_path = path.clone();
             object_path.set_extension("o");
 
             run_command(
@@ -100,6 +128,7 @@ fn entry() -> Result<(), Box<dyn Error>> {
         Commands::Run { .. } => {
             ir::interpret(ir)?;
         }
+        Commands::Clean { .. } => unreachable!()
     }
 
     Ok(())

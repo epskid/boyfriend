@@ -114,11 +114,8 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
     while idx < ir.len() {
         if (idx + 5) < ir.len() {
             match (ir[idx], ir[idx + 1], ir[idx + 2], ir[idx + 3], ir[idx + 4], ir[idx + 5]) {
-                // TODO: convert Arithmetic { amount: -1 } to Arithmetic { amount: amt2 } or
-                // something
-                (LoopStart, Shift { amount: ofs1 }, Arithmetic { amount: amt @ 0.. }, Shift { amount: ofs2 }, Arithmetic { amount: -1 }, LoopEnd) if ofs1 == -ofs2 => {
-                    ir[idx] = IR::Multiply {
-                        amount: amt,
+                (LoopStart, Shift { amount: ofs1 }, Arithmetic { amount: 1 }, Shift { amount: ofs2 }, Arithmetic { amount: -1 }, LoopEnd) if ofs1 == -ofs2 => {
+                    ir[idx] = IR::Move {
                         output_offset: ofs1
                     };
                     ir.remove(idx + 5);
@@ -128,8 +125,11 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
                     ir.remove(idx + 1);
                     pruned += 5;
                 }
-                (LoopStart, Shift { amount: ofs1 }, Arithmetic { amount: 1 }, Shift { amount: ofs2 }, Arithmetic { amount: -1 }, LoopEnd) if ofs1 == -ofs2 => {
-                    ir[idx] = IR::Move {
+                // TODO: convert Arithmetic { amount: -1 } to Arithmetic { amount: amt2 } or
+                // something
+                (LoopStart, Shift { amount: ofs1 }, Arithmetic { amount: amt @ 0.. }, Shift { amount: ofs2 }, Arithmetic { amount: -1 }, LoopEnd) if ofs1 == -ofs2 => {
+                    ir[idx] = IR::Multiply {
+                        amount: amt,
                         output_offset: ofs1
                     };
                     ir.remove(idx + 5);

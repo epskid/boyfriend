@@ -2,8 +2,9 @@
 an optimizing brainf*ck compiler, and my first venture into compiler-assisted development (which involves installing `tmux`, growing a neckbeard, and gaining a healthy hundred pounds).
 
 ## usage
-first, compile it like an ordinary rust project (`cargo build --release` or `cargo install --path .` to add it to your `$PATH`)
-pretty self explanitory, you can do
+first, compile it like an ordinary rust project (`cargo build --release` or `cargo install --path .` to add it to your `$PATH`).
+<br />
+after that, it's pretty self explanitory, you can do
 ```shell
 $ path/to/boyfriend run [name of file to run]
 ```

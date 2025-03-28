@@ -1,9 +1,8 @@
 use std::ops::{Index, IndexMut};
 
-/// an implementation of a `fragile chunk list` (coined the name m'self, that's why it sounds all
-/// fancy and complicated.)
-/// you pass it a vector to initialize, and it chunks it into a user-defined size, making removes
-/// and inserts require less memory moving.
+/// a chunk list -- it's just a vector of vectors.
+/// for this project i needed an ordered data structure that supported fast indexing and fast removal times.
+/// splitting a vector into chunks means that removal requires less memory to be moved around.
 pub struct ChunkList<T> {
     chunks: Vec<Vec<T>>,
 }

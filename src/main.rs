@@ -6,8 +6,10 @@ use std::process::{Command, exit};
 
 use clap::{Parser, Subcommand};
 
-mod ir;
 mod chunk_list;
+mod ir;
+mod asm;
+mod interpret;
 
 #[derive(Parser)]
 #[clap(version, about, subcommand_required = true, long_about = None)]
@@ -74,14 +76,14 @@ fn compile(interpret: bool, link_libc: bool, path: PathBuf) -> Result<(), Box<dy
     ir::optimize_pass_2(&mut ir);
 
     if interpret {
-        ir::interpret(ir)?;
+        interpret::interpret(ir)?;
     } else {
         let mut asm_path = path.clone();
         asm_path.set_extension("asm");
 
         let mut out = BufWriter::new(File::create(&asm_path)?);
 
-        ir::to_asm(link_libc, ir, &mut out)?;
+        asm::to_asm(link_libc, ir, &mut out)?;
 
         eprintln!("* compilation success, writing assembly to {}", asm_path.display());
 

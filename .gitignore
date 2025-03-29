@@ -8,5 +8,6 @@ Cargo.lock
 !tests/*/*.bf
 !tests/*/README.txt
 !src/
+!src/*
 !Cargo.toml
 !README.txt

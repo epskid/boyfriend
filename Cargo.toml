@@ -1,9 +1,10 @@
 [package]
 name = "boyfriend"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "an optimizing brainf*ck compiler"
 
 [dependencies]
 clap = { version = "4.5.32", features = ["derive"] }
 indoc = "2.0.6"
+memchr = "2.7.4"

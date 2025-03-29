@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use std::error::Error;
 use indoc::indoc;
+use memchr::{memchr, memrchr};
 
 use crate::chunk_list::ChunkList;
 
@@ -38,6 +39,10 @@ pub enum IR {
     Move {
         output_offset: isize,
     },
+    /// +[->+]-
+    AnchorRight,
+    /// +[-<+]-
+    AnchorLeft,
 }
 
 use IR::*;
@@ -89,8 +94,6 @@ pub fn optimize_pass_1(ir: &mut ChunkList<IR>) {
                 }
                 _ => idx += 1,
             }
-
-            eprint!("\x1b[2K\r? optimization progress: {:.2}%", (idx as f32 / ir.len() as f32) * 100.0);
         } else {
             break;
         }
@@ -101,7 +104,7 @@ pub fn optimize_pass_1(ir: &mut ChunkList<IR>) {
         }
     }
 
-    eprintln!("\n* success, pruned {pruned} instructions");
+    eprintln!("* success, pruned {pruned} instructions");
 }
 
 /// collapse idioms
@@ -142,6 +145,24 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
                 _ => {}
             }
         }
+        if (idx + 4) < ir.len() {
+            match (ir[idx], ir[idx + 1], ir[idx + 2], ir[idx + 3], ir[idx + 4]) {
+                // TODO: implement non-255 anchors
+                (LoopStart, Arithmetic { amount: -1 }, Shift { amount: dir @ (1 | -1) }, Arithmetic { amount: 1 }, LoopEnd) => {
+                    if dir == 1 {
+                        ir[idx] = IR::AnchorRight;
+                    } else if dir == -1 {
+                        ir[idx] = IR::AnchorLeft;
+                    }
+                    ir.remove(idx + 4);
+                    ir.remove(idx + 3);
+                    ir.remove(idx + 2);
+                    ir.remove(idx + 1);
+                    pruned += 4;
+                }
+                _ => {}
+            }
+        }
         if (idx + 2) < ir.len() {
             match (ir[idx], ir[idx + 1], ir[idx + 2]) {
                 (LoopStart, Arithmetic { .. }, LoopEnd) => {
@@ -154,14 +175,13 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
             }
         }
 
-        eprint!("\x1b[2K\r? optimization progress: {:.2}%", (idx as f32 / ir.len() as f32) * 100.0);
         idx += 1;
     }
 
-    eprintln!("\n* success, pruned {pruned} instructions");
+    eprintln!("* success, pruned {pruned} instructions");
 }
 
-pub fn to_asm(ir: ChunkList<IR>, writer: &mut impl Write) -> Result<(), Box<dyn Error>> {
+pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> Result<(), Box<dyn Error>> {
     let mut label_stack = Vec::new();
     let mut current_label = 0;
 
@@ -225,6 +245,12 @@ pub fn to_asm(ir: ChunkList<IR>, writer: &mut impl Write) -> Result<(), Box<dyn 
             Move { output_offset } => {
                 writeln!(writer, "mov r12, {}", output_offset.abs())?;
                 writeln!(writer, "call M{}", if output_offset > 0 { "" } else { "s" })?;
+            }
+            AnchorRight => {
+                writeln!(writer, "call r")?;
+            }
+            AnchorLeft => {
+                writeln!(writer, "call l")?;
             }
         }
     }
@@ -305,6 +331,124 @@ pub fn to_asm(ir: ChunkList<IR>, writer: &mut impl Write) -> Result<(), Box<dyn 
         ret
     "})?;
 
+    if link_libc {
+        writeln!(writer, indoc!{"
+            extrn memchr
+            extrn memrchr
+
+            ; find right anchor (memchr-enabled)
+            r:
+            call anchor_start
+            lea rdi, byte [tape + r8]
+            mov rsi, 255
+            mov rdx, 0xFFFF
+            sub rdx, r8
+            call memchr
+            cmp rax, 0
+            jz r_wrap
+            jmp anchor_done
+            ret
+            r_wrap:
+            lea rdi, byte [tape]
+            mov rsi, 255
+            mov rdx, r8
+            call memchr
+            cmp rax, 0
+            jz halting_problem_solved_100_percent_working_1936
+            jmp anchor_done
+
+            ; find left anchor (memrchr-enabled)
+            l:
+            call anchor_start
+            lea rdi, byte [tape]
+            mov rsi, 255
+            mov rdx, r8
+            call memrchr
+            cmp rax, 0
+            jz l_wrap
+            jmp anchor_done
+            l_wrap:
+            lea rdi, byte [tape + r8]
+            mov rsi, 255
+            mov rdx, 0xFFFF
+            sub rdx, r8
+            call memrchr
+            cmp rax, 0
+            jz halting_problem_solved_100_percent_working_1936
+            jmp anchor_done
+
+            ; common code
+            anchor_start:
+            cmp byte [tape + r8], 0
+            jz anchor_short_circuit
+            sub byte [tape + r8], 1
+            ret
+
+            anchor_short_circuit:
+            add rsp, 8
+            ret
+
+            anchor_done:
+            mov r8, rax
+            lea rax, byte [tape]
+            sub r8, rax
+            mov byte [tape + r8], 0
+            ret
+
+            ; solve the halting problem
+            halting_problem_solved_100_percent_working_1936:
+            mov rax, 1
+            mov rdi, 1
+            lea rsi, byte [halting_message]
+            mov rdx, halting_message_len
+            syscall
+            mov rax, 60
+            mov rdi, 1
+            syscall
+
+            section '.data'
+            halting_message db '[boyfriend] ! infinite loop detected, exiting', 0xA
+            halting_message_len = $-halting_message
+        "})?;
+    } else {
+        writeln!(writer, indoc!{"
+            ; find right anchor (no libc)
+            r:
+            call anchor_start
+            r_glide:
+            add r8, 1
+            and r8, 0xFFFF
+            cmp byte [tape + r8], 255
+            jne r_glide
+            jmp anchor_end
+
+            ; find left anchor (no libc)
+            l:
+            call anchor_start
+            l_glide:
+            sub r8, 1
+            and r8, 0xFFFF
+            cmp byte [tape + r8], 255
+            jne l_glide
+            jmp anchor_end
+
+            ; common code
+            anchor_start:
+            cmp byte [tape + r8], 0
+            jz anchor_short_circuit
+            sub byte [tape + r8], 1
+            ret
+
+            anchor_short_circuit:
+            add rsp, 8
+            ret
+
+            anchor_end:
+            mov byte [tape + r8], 0
+            ret
+        "})?;
+    }
+
     Ok(())
 }
 
@@ -378,6 +522,34 @@ pub fn interpret(ir: ChunkList<IR>) -> Result<(), Box<dyn Error>> {
                 let new_ptr = ptr.overflowing_add_signed(output_offset).0 & 0xffff;
                 memory[new_ptr] += memory[ptr];
                 memory[ptr] = 0;
+            }
+            AnchorRight => {
+                if memory[ptr] == 0 {
+                    ip += 1;
+                    continue;
+                }
+                memory[ptr] = memory[ptr].overflowing_sub(1).0;
+                if let Some(anchor) = memchr(255, &memory[ptr..]).map(|offset| offset + ptr).or_else(|| memchr(255, &memory)) {
+                    ptr = anchor;
+                    memory[ptr] = 0;
+                } else {
+                    eprintln!("[boyfriend] ! infinite loop detected, halting");
+                    break;
+                }
+            }
+            AnchorLeft => {
+                if memory[ptr] == 0 {
+                    ip += 1;
+                    continue;
+                }
+                memory[ptr] = memory[ptr].overflowing_sub(1).0;
+                if let Some(anchor) = memrchr(255, &memory[..ptr]).or_else(|| memrchr(255, &memory[ptr..]).map(|offset| offset + ptr)) {
+                    ptr = anchor;
+                    memory[ptr] = 0;
+                } else {
+                    eprintln!("[boyfriend] ! infinite loop detected, halting");
+                    break;
+                }
             }
         }
 

@@ -10,7 +10,7 @@ mod ir;
 mod chunk_list;
 
 #[derive(Parser)]
-#[clap(version, about, long_about = None)]
+#[clap(version, about, subcommand_required = true, long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -18,14 +18,26 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// compile a brainf*ck file into an executable ELF64 file (requires fasm and ld)
-    Compile { path: PathBuf },
+    /// Compile a brainf*ck file into an executable ELF64 file (requires fasm and ld)
+    Compile {
+        /// Don't output any artifacts -- interpret the generated intermediate representation
+        #[arg(short, long)]
+        interpret: bool,
 
-    /// compile a brainf*ck file into intermediate representation, then interpret it
-    Run { path: PathBuf },
+        /// Link to libc when creating the ELF binary (discarded if --interpret is set)
+        /// This lets the compiled executable use `memchr` function for marginal performance gains
+        #[arg(long, verbatim_doc_comment)]
+        link_libc: bool,
 
-    /// clean up artifacts generated when using `boyfriend compile` (may delete important stuff)
-    Clean { path: PathBuf },
+        /// Path to the brainf*ck file to compile/interpret
+        path: PathBuf,
+    },
+
+    /// Clean up artifacts generated when using `boyfriend compile`
+    Clean {
+        /// Path to any of the artifacts generated, or the brainf*ck file
+        path: PathBuf,
+    },
 }
 
 fn run_command(cmd: &mut std::process::Command) -> std::io::Result<()> {
@@ -50,12 +62,67 @@ fn run_command(cmd: &mut std::process::Command) -> std::io::Result<()> {
     Ok(())
 }
 
+fn compile(interpret: bool, link_libc: bool, path: PathBuf) -> Result<(), Box<dyn Error>> {
+    eprintln!("? {} -- {} (v{})", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_DESCRIPTION"), env!("CARGO_PKG_VERSION"));
+
+    let code = read_to_string(&path)?;
+
+    eprintln!("* beginning compilation of {}", path.display());
+
+    let mut ir = ir::compile(code);
+    ir::optimize_pass_1(&mut ir);
+    ir::optimize_pass_2(&mut ir);
+
+    if interpret {
+        ir::interpret(ir)?;
+    } else {
+        let mut asm_path = path.clone();
+        asm_path.set_extension("asm");
+
+        let mut out = BufWriter::new(File::create(&asm_path)?);
+
+        ir::to_asm(link_libc, ir, &mut out)?;
+
+        eprintln!("* compilation success, writing assembly to {}", asm_path.display());
+
+        out.flush()?;
+
+        eprintln!("* building object with fasm");
+
+        let mut object_path = path.clone();
+        object_path.set_extension("o");
+
+        run_command(
+            Command::new("fasm")
+                .args(["-m", "64000"])
+                .arg(&asm_path)
+                .arg(&object_path))?;
+
+        eprintln!("* linking binary with ld");
+
+        let mut linker_command = Command::new("ld");
+
+        let mut binary_path = path.clone();
+        binary_path.set_extension("");
+
+        if link_libc {
+            linker_command.args(["-dynamic-linker", "/lib64/ld-linux-x86-64.so.2", "-lc"]);
+        }
+
+        run_command(linker_command
+                .arg("-o")
+                .arg(&binary_path)
+                .arg(&object_path))?;
+    }
+
+    Ok(())
+}
+
 fn entry() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
-    let path = match cli.command {
-        Commands::Compile { ref path } => path,
-        Commands::Run { ref path } => path,
-        Commands::Clean { ref path } => {
+    match cli.command {
+        Commands::Compile { interpret, link_libc, path } => compile(interpret, link_libc, path)?,
+        Commands::Clean { path } => {
             let mut asm_path = path.clone();
             asm_path.set_extension("asm");
             let mut object_path = path.clone();
@@ -75,60 +142,7 @@ fn entry() -> Result<(), Box<dyn Error>> {
             } else {
                 eprintln!("operation aborted by user");
             }
-
-            return Ok(());
         }
-    };
-
-    eprintln!("? {} -- {} (v{})", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_DESCRIPTION"), env!("CARGO_PKG_VERSION"));
-
-    let code = read_to_string(&path)?;
-
-    eprintln!("* beginning compilation of {}", path.display());
-
-    let mut ir = ir::compile(code);
-    ir::optimize_pass_1(&mut ir);
-    ir::optimize_pass_2(&mut ir);
-
-    match cli.command {
-        Commands::Compile { .. } => {
-            let mut asm_path = path.clone();
-            asm_path.set_extension("asm");
-
-            let mut out = BufWriter::new(File::create(&asm_path)?);
-
-            ir::to_asm(ir, &mut out)?;
-
-            eprintln!("* compilation success, writing assembly to {}", asm_path.display());
-
-            out.flush()?;
-
-            eprintln!("* building object with fasm");
-
-            let mut object_path = path.clone();
-            object_path.set_extension("o");
-
-            run_command(
-                Command::new("fasm")
-                    .args(["-m", "64000"])
-                    .arg(&asm_path)
-                    .arg(&object_path))?;
-
-            eprintln!("* linking binary with ld");
-
-            let mut binary_path = path.clone();
-            binary_path.set_extension("");
-
-            run_command(
-                Command::new("ld")
-                    .arg("-o")
-                    .arg(&binary_path)
-                    .arg(&object_path))?;
-        }
-        Commands::Run { .. } => {
-            ir::interpret(ir)?;
-        }
-        Commands::Clean { .. } => unreachable!()
     }
 
     Ok(())

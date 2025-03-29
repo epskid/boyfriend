@@ -20,4 +20,5 @@ to compile to a native ELF64 binary (this requires `ld` and `fasm` to be install
 
 ## credit
 - [this gist](https://gist.github.com/roachhd/dce54bec8ba55fb17d3a) helped me undrestand the basics of brainf*ck, which led me to implementing various optimizable "idioms", eg. `[-]` means zero the current cell)
-- [truttle1's video](https://www.youtube.com/watch?v=Mt3SqU3ge4o&t=231s) on compilers was a big inspiration
+- [this video](https://www.youtube.com/watch?v=Mt3SqU3ge4o) on compilers was a big inspiration
+- [this repo](https://github.com/mitxela/bf-tic-tac-toe) for inspiring the `+[->+]-` idiom

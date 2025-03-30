@@ -10,9 +10,8 @@ pub fn interpret(ir: ChunkList<IR>) -> Result<(), Box<dyn Error>> {
     let mut memory = vec![0u8; 0x10000];
     let mut ptr: usize = 0;
     let mut ip = 0;
-    let mut loop_stack = Vec::new();
 
-    'interpret: while ip < insts.len() {
+    while ip < insts.len() {
         let inst = insts[ip];
 
         match inst {
@@ -22,37 +21,11 @@ pub fn interpret(ir: ChunkList<IR>) -> Result<(), Box<dyn Error>> {
             Arithmetic { amount } => {
                 memory[ptr] = memory[ptr].overflowing_add_signed(amount).0;
             }
-            LoopStart => {
-                loop_stack.push(ip);
-
-                if memory[ptr] != 0 {
-                    ip += 1;
-                    continue;
-                }
-
-                let mut counter = 1;
-
-                for (ipp, inst_find) in insts.iter().enumerate().skip(ip + 1) {
-                    match inst_find {
-                        LoopStart => counter += 1,
-                        LoopEnd => {
-                            counter -= 1;
-
-                            if counter == 0 {
-                                ip = ipp;
-                                continue 'interpret;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
+            LoopStart { end_index } => if memory[ptr] == 0 {
+                ip = end_index;
             }
-            LoopEnd => {
-                let start_bracket = loop_stack.pop().ok_or("mismatched closing bracket (no `[` for `]`)")?;
-                if memory[ptr] != 0 {
-                    ip = start_bracket;
-                    continue;
-                }
+            LoopEnd { start_index } => if memory[ptr] != 0 {
+                ip = start_index;
             }
             Input => {
                 memory[ptr] = std::io::stdin().bytes().next().and_then(|r| r.ok()).ok_or("failed to read stdin")?;

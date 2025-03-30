@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use crate::chunk_list::ChunkList;
 
 #[derive(Clone, Copy)]
@@ -13,9 +15,9 @@ pub enum IR {
         amount: i8,
     },
     /// [
-    LoopStart,
+    LoopStart { end_index: usize },
     /// ]
-    LoopEnd,
+    LoopEnd { start_index: usize  },
     /// ,
     Input,
     /// .
@@ -52,8 +54,8 @@ pub fn compile(code: String) -> ChunkList<IR> {
             '<' => ir.push(IR::Shift { amount: -1 }),
             '+' => ir.push(IR::Arithmetic { amount: 1 }),
             '-' => ir.push(IR::Arithmetic { amount: -1 }),
-            '[' => ir.push(IR::LoopStart),
-            ']' => ir.push(IR::LoopEnd),
+            '[' => ir.push(IR::LoopStart { end_index: usize::MAX }),
+            ']' => ir.push(IR::LoopEnd { start_index: usize::MAX }),
             ',' => ir.push(IR::Input),
             '.' => ir.push(IR::Output),
             _comment => {}
@@ -112,7 +114,7 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
     while idx < ir.len() {
         if (idx + 5) < ir.len() {
             match (ir[idx], ir[idx + 1], ir[idx + 2], ir[idx + 3], ir[idx + 4], ir[idx + 5]) {
-                (LoopStart, Shift { amount: ofs1 }, Arithmetic { amount: 1 }, Shift { amount: ofs2 }, Arithmetic { amount: -1 }, LoopEnd) if ofs1 == -ofs2 => {
+                (LoopStart { .. }, Shift { amount: ofs1 }, Arithmetic { amount: 1 }, Shift { amount: ofs2 }, Arithmetic { amount: -1 }, LoopEnd { .. }) if ofs1 == -ofs2 => {
                     ir[idx] = IR::Move {
                         output_offset: ofs1
                     };
@@ -123,9 +125,8 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
                     ir.remove(idx + 1);
                     pruned += 5;
                 }
-                // TODO: convert Arithmetic { amount: -1 } to Arithmetic { amount: amt2 } or
-                // something
-                (LoopStart, Shift { amount: ofs1 }, Arithmetic { amount: amt @ 0.. }, Shift { amount: ofs2 }, Arithmetic { amount: -1 }, LoopEnd) if ofs1 == -ofs2 => {
+                // TODO: convert Arithmetic { amount: -1 } to Arithmetic { amount: amt2 } or something
+                (LoopStart { .. }, Shift { amount: ofs1 }, Arithmetic { amount: amt @ 0.. }, Shift { amount: ofs2 }, Arithmetic { amount: -1 }, LoopEnd { .. }) if ofs1 == -ofs2 => {
                     ir[idx] = IR::Multiply {
                         amount: amt,
                         output_offset: ofs1
@@ -143,7 +144,7 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
         if (idx + 4) < ir.len() {
             match (ir[idx], ir[idx + 1], ir[idx + 2], ir[idx + 3], ir[idx + 4]) {
                 // TODO: implement non-255 anchors
-                (LoopStart, Arithmetic { amount: -1 }, Shift { amount: dir @ (1 | -1) }, Arithmetic { amount: 1 }, LoopEnd) => {
+                (LoopStart { .. }, Arithmetic { amount: -1 }, Shift { amount: dir @ (1 | -1) }, Arithmetic { amount: 1 }, LoopEnd { .. }) => {
                     if dir == 1 {
                         ir[idx] = IR::AnchorRight;
                     } else if dir == -1 {
@@ -159,7 +160,7 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
             }
         }
         if (idx + 2) < ir.len() {
-            if let(LoopStart, Arithmetic { .. }, LoopEnd) = (ir[idx], ir[idx + 1], ir[idx + 2]) {
+            if let(LoopStart { .. }, Arithmetic { .. }, LoopEnd { .. }) = (ir[idx], ir[idx + 1], ir[idx + 2]) {
                 ir[idx] = IR::Zero;
                 ir.remove(idx + 2);
                 ir.remove(idx + 1);
@@ -171,4 +172,48 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
     }
 
     eprintln!("* success, pruned {pruned} instructions");
+}
+
+/// match loops
+pub fn match_brackets(ir: &mut ChunkList<IR>) -> Result<(), Box<dyn Error>> {
+    eprintln!("* matching brackets");
+
+    'matching: for idx in 0..ir.len() {
+        match ir[idx] {
+            LoopStart { .. } => {
+                let mut counter = 1;
+
+                for end_index_maybe in idx + 1.. {
+                    if end_index_maybe >= ir.len() {
+                        break;
+                    }
+
+                    match ir[end_index_maybe] {
+                        LoopStart { .. } => counter += 1,
+                        LoopEnd { .. } => {
+                            counter -= 1;
+
+                            if counter == 0 {
+                                let LoopStart { ref mut end_index } = ir[idx] else { unreachable!() };
+                                *end_index = end_index_maybe;
+                                let LoopEnd { ref mut start_index } = ir[end_index_maybe] else { unreachable!() };
+                                *start_index = idx;
+                                continue 'matching;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+
+                return Err("mismatched brackets -- too many `[` for `]`".into());
+            }
+            LoopEnd { start_index: usize::MAX } => {
+                return Err("mismatched brackets -- too many `]` for `[`".into());
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }

@@ -38,15 +38,15 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> Re
             Arithmetic { amount: a @ 0.. } => {
                 writeln!(writer, "add byte [tape + r8], {}", a.abs())?;
             }
-            LoopStart => {
+            LoopStart { .. } => {
                 writeln!(writer, "o{current_label:x}:")?;
                 writeln!(writer, "cmp byte [tape + r8], 0")?;
                 writeln!(writer, "jz c{current_label:x}")?;
                 label_stack.push(current_label);
                 current_label += 1;
             }
-            LoopEnd => {
-                let opening_label = label_stack.pop().ok_or("mismatched closing bracket (no `[` for `]`)")?;
+            LoopEnd { .. } => {
+                let Some(opening_label) = label_stack.pop() else { unreachable!() };
                 writeln!(writer, "jmp o{opening_label:x}")?;
                 writeln!(writer, "c{opening_label:x}:")?;
             }

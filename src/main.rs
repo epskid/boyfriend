@@ -74,6 +74,7 @@ fn compile(interpret: bool, link_libc: bool, path: PathBuf) -> Result<(), Box<dy
     let mut ir = ir::compile(code);
     ir::optimize_pass_1(&mut ir);
     ir::optimize_pass_2(&mut ir);
+    ir::match_brackets(&mut ir)?;
 
     if interpret {
         interpret::interpret(ir)?;

@@ -1,11 +1,10 @@
 use std::io::Write;
-use std::error::Error;
 use indoc::indoc;
 
 use crate::chunk_list::ChunkList;
 use crate::ir::IR::{self, *};
 
-pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> Result<(), Box<dyn Error>> {
+pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> anyhow::Result<()> {
     let mut label_stack = Vec::new();
     let mut current_label = 0;
 

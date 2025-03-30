@@ -1,11 +1,11 @@
 use std::io::{Read, Write};
-use std::error::Error;
 use memchr::{memchr, memrchr};
+use anyhow::{bail, Context};
 
 use crate::chunk_list::ChunkList;
 use crate::ir::IR::{self, *};
 
-pub fn interpret(ir: ChunkList<IR>) -> Result<(), Box<dyn Error>> {
+pub fn interpret(ir: ChunkList<IR>) -> anyhow::Result<()> {
     let insts = ir.into_iter().collect::<Vec<IR>>();
     let mut memory = vec![0u8; 0x10000];
     let mut ptr: usize = 0;
@@ -28,7 +28,11 @@ pub fn interpret(ir: ChunkList<IR>) -> Result<(), Box<dyn Error>> {
                 ip = start_index;
             }
             Input => {
-                memory[ptr] = std::io::stdin().bytes().next().and_then(|r| r.ok()).ok_or("failed to read stdin")?;
+                memory[ptr] = std::io::stdin()
+                    .bytes()
+                    .next()
+                    .context("no stdin?")?
+                    .context("failed to read stdin")?;
             }
             Output => {
                 std::io::stdout().write_all(&[memory[ptr]])?;
@@ -59,8 +63,7 @@ pub fn interpret(ir: ChunkList<IR>) -> Result<(), Box<dyn Error>> {
                     ptr = anchor;
                     memory[ptr] = 0;
                 } else {
-                    eprintln!("[boyfriend] ! infinite loop detected, halting");
-                    break;
+                    bail!("[boyfriend] infinite loop detected, halting");
                 }
             }
             AnchorLeft => {
@@ -73,8 +76,7 @@ pub fn interpret(ir: ChunkList<IR>) -> Result<(), Box<dyn Error>> {
                     ptr = anchor;
                     memory[ptr] = 0;
                 } else {
-                    eprintln!("[boyfriend] ! infinite loop detected, halting");
-                    break;
+                    bail!("[boyfriend] infinite loop detected, halting");
                 }
             }
         }

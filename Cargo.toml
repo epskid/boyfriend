@@ -5,6 +5,7 @@ edition = "2024"
 description = "an optimizing brainf*ck compiler"
 
 [dependencies]
+anyhow = "1.0.97"
 clap = { version = "4.5.32", features = ["derive"] }
 indoc = "2.0.6"
 memchr = "2.7.4"

@@ -1,4 +1,4 @@
-use std::error::Error;
+use anyhow::bail;
 
 use crate::chunk_list::ChunkList;
 
@@ -175,7 +175,7 @@ pub fn optimize_pass_2(ir: &mut ChunkList<IR>) {
 }
 
 /// match loops
-pub fn match_brackets(ir: &mut ChunkList<IR>) -> Result<(), Box<dyn Error>> {
+pub fn match_brackets(ir: &mut ChunkList<IR>) -> anyhow::Result<()> {
     eprintln!("* matching brackets");
 
     'matching: for idx in 0..ir.len() {
@@ -206,10 +206,10 @@ pub fn match_brackets(ir: &mut ChunkList<IR>) -> Result<(), Box<dyn Error>> {
                 }
 
 
-                return Err("mismatched brackets -- too many `[` for `]`".into());
+                bail!("mismatched brackets -- too many `[` for `]`");
             }
             LoopEnd { start_index: usize::MAX } => {
-                return Err("mismatched brackets -- too many `]` for `[`".into());
+                bail!("mismatched brackets -- too many `]` for `[`");
             }
             _ => {}
         }

@@ -1,10 +1,10 @@
 use std::fs::{read_to_string, File};
 use std::path::PathBuf;
-use std::error::Error;
 use std::io::{BufWriter, Write};
 use std::process::{Command, exit};
 
 use clap::{Parser, Subcommand};
+use anyhow::bail;
 
 mod chunk_list;
 mod ir;
@@ -64,7 +64,7 @@ fn run_command(cmd: &mut std::process::Command) -> std::io::Result<()> {
     Ok(())
 }
 
-fn compile(interpret: bool, link_libc: bool, path: PathBuf) -> Result<(), Box<dyn Error>> {
+fn compile(interpret: bool, link_libc: bool, path: PathBuf) -> anyhow::Result<()> {
     eprintln!("? {} -- {} (v{})", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_DESCRIPTION"), env!("CARGO_PKG_VERSION"));
 
     let code = read_to_string(&path)?;
@@ -121,7 +121,7 @@ fn compile(interpret: bool, link_libc: bool, path: PathBuf) -> Result<(), Box<dy
     Ok(())
 }
 
-fn entry() -> Result<(), Box<dyn Error>> {
+fn entry() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Compile { interpret, link_libc, path } => compile(interpret, link_libc, path)?,
@@ -143,7 +143,7 @@ fn entry() -> Result<(), Box<dyn Error>> {
                 std::fs::remove_file(object_path)?;
                 std::fs::remove_file(binary_path)?;
             } else {
-                eprintln!("operation aborted by user");
+                bail!("operation aborted by user");
             }
         }
     }

@@ -8,7 +8,10 @@ pub struct ChunkList<T> {
 }
 
 impl<T> ChunkList<T> {
-    pub fn new(chunk_me: Vec<T>, chunk_size: usize) -> Self where T: Clone {
+    pub fn new(chunk_me: Vec<T>, chunk_size: usize) -> Self
+    where
+        T: Clone,
+    {
         Self {
             chunks: chunk_me.chunks(chunk_size).map(|s| s.into()).collect(),
         }
@@ -29,7 +32,10 @@ impl<T> ChunkList<T> {
         (chunk_number, index)
     }
 
-    pub fn remove(&mut self, index: usize) where T: Clone {
+    pub fn remove(&mut self, index: usize)
+    where
+        T: Clone,
+    {
         let (chunk_number, index) = self.get_real_index(index);
         self.chunks[chunk_number].remove(index);
         if self.chunks[chunk_number].is_empty() {

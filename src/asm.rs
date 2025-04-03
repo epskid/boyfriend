@@ -1,5 +1,5 @@
-use std::io::Write;
 use indoc::indoc;
+use std::io::Write;
 
 use crate::chunk_list::ChunkList;
 use crate::ir::IR::{self, *};
@@ -8,7 +8,9 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> an
     let mut label_stack = Vec::new();
     let mut current_label = 0;
 
-    writeln!(writer, indoc! {"
+    writeln!(
+        writer,
+        indoc! {"
         ; compiled by boyfriend -- riir nation!
         format ELF64
         public _start
@@ -19,7 +21,8 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> an
         section '.text' executable
         _start:
         xor r8, r8
-    "})?;
+    "}
+    )?;
 
     for inst in ir {
         match inst {
@@ -45,7 +48,9 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> an
                 current_label += 1;
             }
             LoopEnd { .. } => {
-                let Some(opening_label) = label_stack.pop() else { unreachable!() };
+                let Some(opening_label) = label_stack.pop() else {
+                    unreachable!()
+                };
                 writeln!(writer, "jmp o{opening_label:x}")?;
                 writeln!(writer, "c{opening_label:x}:")?;
             }
@@ -60,7 +65,10 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> an
             Zero => {
                 writeln!(writer, "call z")?;
             }
-            Multiply { amount, output_offset } => {
+            Multiply {
+                amount,
+                output_offset,
+            } => {
                 writeln!(writer, "mov r13b, {amount}")?;
                 writeln!(writer, "mov r12, {}", output_offset.abs())?;
                 writeln!(writer, "call m{}", if output_offset > 0 { "" } else { "s" })?;
@@ -78,7 +86,9 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> an
         }
     }
 
-    writeln!(writer, indoc!{"
+    writeln!(
+        writer,
+        indoc! {"
         ; exit syscall
         mov rax, 60
         xor rdi, rdi
@@ -152,10 +162,13 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> an
         add byte [tape + r14], r13b
         mov byte [tape + r8], 0
         ret
-    "})?;
+    "}
+    )?;
 
     if link_libc {
-        writeln!(writer, indoc!{"
+        writeln!(
+            writer,
+            indoc! {"
             extrn memchr
             extrn memrchr
 
@@ -232,9 +245,12 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> an
             section '.data'
             halting_message db '[boyfriend] ! infinite loop detected, exiting', 0xA
             halting_message_len = $-halting_message
-        "})?;
+        "}
+        )?;
     } else {
-        writeln!(writer, indoc!{"
+        writeln!(
+            writer,
+            indoc! {"
             ; find right anchor (no libc)
             r:
             call anchor_start
@@ -269,7 +285,8 @@ pub fn to_asm(link_libc: bool, ir: ChunkList<IR>, writer: &mut impl Write) -> an
             anchor_end:
             mov byte [tape + r8], 0
             ret
-        "})?;
+        "}
+        )?;
     }
 
     Ok(())

@@ -1,6 +1,6 @@
-use std::io::{Read, Write};
+use anyhow::{Context, bail};
 use memchr::{memchr, memrchr};
-use anyhow::{bail, Context};
+use std::io::{Read, Write};
 
 use crate::chunk_list::ChunkList;
 use crate::ir::IR::{self, *};
@@ -21,11 +21,15 @@ pub fn interpret(ir: ChunkList<IR>) -> anyhow::Result<()> {
             Arithmetic { amount } => {
                 memory[ptr] = memory[ptr].overflowing_add_signed(amount).0;
             }
-            LoopStart { end_index } => if memory[ptr] == 0 {
-                ip = end_index;
+            LoopStart { end_index } => {
+                if memory[ptr] == 0 {
+                    ip = end_index;
+                }
             }
-            LoopEnd { start_index } => if memory[ptr] != 0 {
-                ip = start_index;
+            LoopEnd { start_index } => {
+                if memory[ptr] != 0 {
+                    ip = start_index;
+                }
             }
             Input => {
                 memory[ptr] = std::io::stdin()
@@ -43,7 +47,10 @@ pub fn interpret(ir: ChunkList<IR>) -> anyhow::Result<()> {
             Zero => {
                 memory[ptr] = 0;
             }
-            Multiply { amount, output_offset } => {
+            Multiply {
+                amount,
+                output_offset,
+            } => {
                 let new_ptr = ptr.overflowing_add_signed(output_offset).0 & 0xffff;
                 memory[new_ptr] += memory[ptr].overflowing_mul(amount as u8).0;
                 memory[ptr] = 0;
@@ -59,7 +66,10 @@ pub fn interpret(ir: ChunkList<IR>) -> anyhow::Result<()> {
                     continue;
                 }
                 memory[ptr] = memory[ptr].overflowing_sub(1).0;
-                if let Some(anchor) = memchr(255, &memory[ptr..]).map(|offset| offset + ptr).or_else(|| memchr(255, &memory)) {
+                if let Some(anchor) = memchr(255, &memory[ptr..])
+                    .map(|offset| offset + ptr)
+                    .or_else(|| memchr(255, &memory))
+                {
                     ptr = anchor;
                     memory[ptr] = 0;
                 } else {
@@ -72,7 +82,9 @@ pub fn interpret(ir: ChunkList<IR>) -> anyhow::Result<()> {
                     continue;
                 }
                 memory[ptr] = memory[ptr].overflowing_sub(1).0;
-                if let Some(anchor) = memrchr(255, &memory[..ptr]).or_else(|| memrchr(255, &memory[ptr..]).map(|offset| offset + ptr)) {
+                if let Some(anchor) = memrchr(255, &memory[..ptr])
+                    .or_else(|| memrchr(255, &memory[ptr..]).map(|offset| offset + ptr))
+                {
                     ptr = anchor;
                     memory[ptr] = 0;
                 } else {

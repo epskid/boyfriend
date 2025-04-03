@@ -38,7 +38,7 @@ $ boyfriend moonshine -i tests/mandelbrot/mandelbrot.bf
 ```
 
 ### implementations - cranelift
-[cranelift](https://cranelift.dev/) is a compiler backend (think LLVM) written in rust. you can enable it by passing `--features cranelift` during compilation.
+[cranelift](https://cranelift.dev/) is a compiler backend (think LLVM) written in rust. you can enable it by passing `--features cranelift` during the `cargo install` or `cargo build` step.
 >[!NOTE]
 >this one is mainly an experiment. someone more skilled than me could definitely optimize this by playing to cranelift's strengths by splitting loops into functions or something.
 

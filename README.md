@@ -14,6 +14,7 @@ there are a few different ways to use this compiler. the two main categories are
 the moonshine implementation can execute code in two ways:
  1. compiling code into assembly, then building and linking (the user can optionally link to `libc` for hypothetical marginal performance gains)
  2. as an interpreter
+<br>
 the moonshine implementation is written completely by hand, with no external libraries assisting with codegen and interpretation.
 
 #### implementations - moonshine - usage
@@ -51,7 +52,7 @@ $ boyfriend cranelift tests/mandelbrot/mandelbrot.bf
 <br />
 the much-more-stable jit interface functions similarly to the interpreter:
 ```bash
-$ boyfriend moonshine --jit tests/mandelbrot/mandelbrot.bf
+$ boyfriend cranelift --jit tests/mandelbrot/mandelbrot.bf
 ```
 
 ## credit
